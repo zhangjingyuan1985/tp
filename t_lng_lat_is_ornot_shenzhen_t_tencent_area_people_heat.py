@@ -12,9 +12,10 @@ user = 'bg_read'
 password = 'ORVGEK2BgeUFMJlH'
 host = '10.3.4.54'
 port = '5432'
+fdate='20200928'
 
 
-@jit
+#@jit
 def is_in_poly(p, poly):
     """
     :param p: [x, y]
@@ -44,9 +45,6 @@ def is_in_poly(p, poly):
     return is_in
 
 
-
-
-
 if __name__ == '__main__':
     point = [3, 3]
 #    poly = [[0, 0], [7, 3], [8, 8], [5, 5]]
@@ -55,7 +53,7 @@ if __name__ == '__main__':
     table_dict = {}
     conn = psycopg2.connect(database=database, user=user, password=password, host=host, port=port)
     cursor = conn.cursor()
-    cursor.execute("truncate table bigdata.t_table_lng_lat_shenzhen")
+    cursor.execute("truncate table bigdata.t_lng_lat_is_ornot_shenzhen_t_tencent_area_people_heat")
     cursor.execute("select value from bigdata.t_config where key='poly'")
     table_value = cursor.fetchone()
     poly1 = table_value[0]
@@ -63,33 +61,30 @@ if __name__ == '__main__':
     poly=list
     poly = eval(poly1)
     print(poly)
-    # kafka_dict = eval(str(table_value[0]))
-    # print(kafka_dict)
-#    cursor.execute("select table_schema,table_name from bigdata.t_table_field where field like'%lng%' or field like '%lat%'")
-    cursor.execute("select table_schema,table_name,table_catalog,table_type from bigdata.t_table_field where field ='lng' or field ='lat'")
-    table_value = cursor.fetchall()
-    list2 = list(set(table_value))
-    for i in list2:
-        print(i[0])
-        print(i[1])
-        cursor.execute("select lng,lat from " +i[0]+"." + i[1])
-        rows_results = cursor.fetchall()
-        sum_total=0
-        sum_true=0
-        for j in rows_results:
-            print(j)
-            list_j=list(j)
-            print(list_j)
-            try:flag = is_in_poly(list_j, poly)
-            except:flag=False
-            else:flag = is_in_poly(list_j, poly)
+    cursor.execute("select value from bigdata.t_config where key='t_tencent_area_people_heat_date'")
+    date_value=cursor.fetchone()
+    date_list=[]
+    date_list=eval(date_value[0])
+    print(date_list)
+    for date_value1 in date_list:
 
 
-
-            sql1 = "insert into bigdata.t_table_lng_lat_shenzhen(table_name,table_catalog,table_schema,table_type,lng,lat,is_ornot_shenzhen,create_time) values(%s,%s,%s,%s,%s,%s,%s,%s)"
-            parm = (str(i[1]), str(i[2]),str(i[0]),str(i[3]),str(j[0]), str(j[1]), str(flag), date)
-            print(parm)
-            cursor.execute(sql1, parm)
-    conn.commit()
+#        if i[3]=="t_tencent_area_people_heat":
+#            continue
+           cursor.execute("select lng,lat  from public.t_tencent_area_people_heat where city ='440300' and fdate = '"+str(date_value1)+"'")
+           rows_results = cursor.fetchall()
+           for j in rows_results:
+               print(j)
+               list_j=list(j)
+               print(list_j)
+               try:flag = is_in_poly(list_j, poly)
+               except:flag=False
+               else:flag = is_in_poly(list_j, poly)
+               if flag == False:
+                  sql1 = "insert into bigdata.t_lng_lat_is_ornot_shenzhen_t_tencent_area_people_heat(table_catalog,table_schema,table_type,table_name,lng,lat,is_ornot_in_shenzhen,create_time,city,fdate) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+                  parm = ('transpaas_index', 'bigdata','BASE TABLE','t_tencent_area_people_heat',str(j[0]), str(j[1]), str(flag), date,'440300',date_value1)
+                  print(parm)
+                  cursor.execute(sql1, parm)
+                  conn.commit()
     cursor.close()
     conn.close()

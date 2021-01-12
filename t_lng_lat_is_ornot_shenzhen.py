@@ -1,9 +1,9 @@
 import psycopg2
 import time
-from numba import jit
 
 
-import concurrent.futures
+
+
 date=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 print(date)
 
@@ -12,9 +12,10 @@ user = 'bg_read'
 password = 'ORVGEK2BgeUFMJlH'
 host = '10.3.4.54'
 port = '5432'
+fdate='20200928'
 
 
-@jit
+
 def is_in_poly(p, poly):
     """
     :param p: [x, y]
@@ -44,9 +45,6 @@ def is_in_poly(p, poly):
     return is_in
 
 
-
-
-
 if __name__ == '__main__':
     point = [3, 3]
 #    poly = [[0, 0], [7, 3], [8, 8], [5, 5]]
@@ -55,7 +53,7 @@ if __name__ == '__main__':
     table_dict = {}
     conn = psycopg2.connect(database=database, user=user, password=password, host=host, port=port)
     cursor = conn.cursor()
-    cursor.execute("truncate table bigdata.t_table_lng_lat_shenzhen")
+    cursor.execute("truncate table bigdata.t_lng_lat_is_ornot_shenzhen")
     cursor.execute("select value from bigdata.t_config where key='poly'")
     table_value = cursor.fetchone()
     poly1 = table_value[0]
@@ -66,17 +64,40 @@ if __name__ == '__main__':
     # kafka_dict = eval(str(table_value[0]))
     # print(kafka_dict)
 #    cursor.execute("select table_schema,table_name from bigdata.t_table_field where field like'%lng%' or field like '%lat%'")
-    cursor.execute("select table_schema,table_name,table_catalog,table_type from bigdata.t_table_field where field ='lng' or field ='lat'")
+#    sql='''select a.table_catalog,a.table_schema,a.table_type, a.table_name,a.field,b.field,c.field from
+#          ((select table_schema,table_name,table_catalog,table_type,field from bigdata.t_table_field where field='city') a
+#                   INNER JOIN (select table_schema,table_name,table_catalog,table_type,field from bigdata.t_table_field where field ='lng') b
+#                             on a.table_name=b.table_name
+#                   INNER JOIN (select table_schema,table_name,table_catalog,table_type,field from bigdata.t_table_field where field ='lat') c
+#                              on a.table_name=b.table_name)
+#        GROUP BY a.table_catalog,a.table_schema,a.table_type, a.table_name,a.field,b.field,c.field'''
+
+    sql = '''select a.table_catalog,a.table_schema,a.table_type, a.table_name,a.field,b.field,c.field from    
+              ((select table_schema,table_name,table_catalog,table_type,field from bigdata.t_table_field where field='city') a    
+                       INNER JOIN (select table_schema,table_name,table_catalog,table_type,field from bigdata.t_table_field where field ='lng') b    
+                                  on a.table_name=b.table_name                                                                                          
+                       INNER JOIN (select table_schema,table_name,table_catalog,table_type,field from bigdata.t_table_field where field ='lat') c
+                                  on a.table_name=b.table_name)
+            '''
+
+    cursor.execute(sql)
     table_value = cursor.fetchall()
+    print(table_value)
     list2 = list(set(table_value))
+    print(list2)
+    sum_total = 0
+    sum_false = 0
     for i in list2:
-        print(i[0])
         print(i[1])
-        cursor.execute("select lng,lat from " +i[0]+"." + i[1])
+        print(i[3])
+#        if i[3]=="t_tencent_area_people_heat":
+#            continue
+
+        cursor.execute("select lng,lat  from " +i[1]+"." + i[3]+" where city ='440300'")
         rows_results = cursor.fetchall()
-        sum_total=0
-        sum_true=0
+
         for j in rows_results:
+            sum_total = sum_total+1
             print(j)
             list_j=list(j)
             print(list_j)
@@ -85,11 +106,15 @@ if __name__ == '__main__':
             else:flag = is_in_poly(list_j, poly)
 
 
+            if flag == False:
+                 sum_false = sum_false+1
+            sql1 = "insert into bigdata.t_lng_lat_is_ornot_shenzhen_ratio(table_catalog,table_schema,table_type,table_name,sum_false,false_ratio,create_time,sum_total) values(%s,%s,%s,%s,%s,%s,%s,%s)"
 
-            sql1 = "insert into bigdata.t_table_lng_lat_shenzhen(table_name,table_catalog,table_schema,table_type,lng,lat,is_ornot_shenzhen,create_time) values(%s,%s,%s,%s,%s,%s,%s,%s)"
-            parm = (str(i[1]), str(i[2]),str(i[0]),str(i[3]),str(j[0]), str(j[1]), str(flag), date)
+            parm = (str(i[0]), str(i[1]),str(i[2]),str(i[3]),str(j[0]), str(j[1]), str(flag), date,'440300')
             print(parm)
             cursor.execute(sql1, parm)
+            bili=sum_false/sum_total
+
     conn.commit()
     cursor.close()
     conn.close()
